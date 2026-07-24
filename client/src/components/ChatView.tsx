@@ -7,6 +7,7 @@ interface Props {
   messages: StoredMessage[];
   onAsk: (question: string) => void;
   onRetry: () => void;
+  onExport: () => void;
   busy: boolean;
 }
 
@@ -83,7 +84,7 @@ function AssistantMessage({ message, onRetry }: { message: StoredMessage; onRetr
   );
 }
 
-export function ChatView({ messages, onAsk, onRetry, busy }: Props) {
+export function ChatView({ messages, onAsk, onRetry, onExport, busy }: Props) {
   const [question, setQuestion] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>();
   const endRef = useRef<HTMLDivElement>(null);
@@ -118,6 +119,17 @@ export function ChatView({ messages, onAsk, onRetry, busy }: Props) {
 
   return (
     <div className="card chat">
+      <div className="chat-head">
+        <span className="muted small">Conversation</span>
+        <button
+          className="link-button small"
+          onClick={onExport}
+          disabled={messages.length === 0}
+          title="Export this conversation as Markdown"
+        >
+          Export
+        </button>
+      </div>
       <div className="messages">
         {messages.length === 0 && (
           <div className="starters">

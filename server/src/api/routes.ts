@@ -11,6 +11,7 @@ import { parseDriveLink } from '../drive/parseLink';
 import { answer } from '../chat/anthropic';
 import { extractCitations } from '../chat/citations';
 import { suggestQuestions } from '../chat/suggest';
+import { summarizeFolder } from '../chat/summarize';
 import { selectDocuments } from '../context/assemble';
 import { Corpus, Session, StoredConversation } from '../types';
 import { limitConcurrency } from '../util/limit';
@@ -58,6 +59,7 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
   router.post('/api/ingest', async (req, res, next) => {
     const session = res.locals.session!;
     const link = String(req.body?.link ?? '');
+    const summarize = req.body?.summarize !== false; // default on
     const rootId = parseDriveLink(link);
     if (!rootId) {
       res.status(400).json({ error: 'That does not look like a Google Drive link.' });
@@ -81,6 +83,13 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
         messages: [],
         manuallyLoaded: [],
       };
+      if (summarize) {
+        try {
+          conversation.summary = await summarizeFolder(config, conversation.files);
+        } catch (err) {
+          log.warn('folder summary failed', { conversationId: conversation.id });
+        }
+      }
       session.conversations.unshift(conversation);
       session.activeConversationId = conversation.id;
       store.flush();

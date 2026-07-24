@@ -5,7 +5,7 @@ export const ICON_ONLY = new Set(['Google Doc', 'Google Sheet', 'Google Slides']
 
 function Doc({ color, corner, children }: { color: string; corner: string; children?: ReactNode }) {
   return (
-    <svg className="ftype-icon" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className="ftype-icon" width="19" height="19" viewBox="0 0 16 16" aria-hidden="true">
       <path
         d="M4.5 1.5h4L12 5v8.5a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z"
         fill={color}

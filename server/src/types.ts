@@ -98,6 +98,8 @@ export interface StoredConversation {
   // Cached starter questions generated from the file list (see chat/suggest).
   suggestions?: string[];
   pinned?: boolean;
+  // Optional folder summary, generated at ingest when the user opts in.
+  summary?: string;
 }
 
 export interface Session {

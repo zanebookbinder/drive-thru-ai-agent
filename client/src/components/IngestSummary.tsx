@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Conversation, StoredFile } from '../types';
 import { formatBytes } from '../format';
+import { GATE_NOTE } from '../limits';
 import { FileTypeIcon, ICON_ONLY } from './FileTypeIcon';
 
 interface Props {
@@ -143,6 +144,15 @@ export function IngestSummary({
             {loadingAll ? 'Loading all…' : 'Load all'}
           </button>
         </p>
+      )}
+
+      <p className="muted small gate-note">{GATE_NOTE}</p>
+
+      {conversation.summary && (
+        <div className="folder-summary">
+          <span className="folder-summary-label muted small">Folder summary</span>
+          <p>{conversation.summary}</p>
+        </div>
       )}
 
       {files.length > 0 && (

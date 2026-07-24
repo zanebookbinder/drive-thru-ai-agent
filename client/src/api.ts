@@ -31,8 +31,8 @@ export function fetchConversations(): Promise<{
   return request('/api/conversations', 'GET');
 }
 
-export function ingest(link: string): Promise<{ conversation: Conversation }> {
-  return request('/api/ingest', 'POST', { link });
+export function ingest(link: string, summarize: boolean): Promise<{ conversation: Conversation }> {
+  return request('/api/ingest', 'POST', { link, summarize });
 }
 
 export function selectConversation(id: string): Promise<{ conversation: Conversation }> {

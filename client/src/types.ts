@@ -50,6 +50,7 @@ export interface Conversation {
   messages: StoredMessage[];
   suggestions?: string[];
   pinned?: boolean;
+  summary?: string;
 }
 
 export interface ChatResult {
