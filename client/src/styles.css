@@ -956,3 +956,26 @@ input[type='text'] {
   padding: 0 16px 14px;
   line-height: 1.55;
 }
+
+/* --- File selection for chat scope --- */
+.scope-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.file-check {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.file-check-spacer {
+  width: 15px;
+  flex-shrink: 0;
+}

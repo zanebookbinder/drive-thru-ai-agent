@@ -100,6 +100,8 @@ export interface StoredConversation {
   pinned?: boolean;
   // Optional folder summary, generated at ingest when the user opts in.
   summary?: string;
+  // If non-empty, chat is scoped to these files only (default: all loaded files).
+  selectedFileIds?: string[];
 }
 
 export interface Session {

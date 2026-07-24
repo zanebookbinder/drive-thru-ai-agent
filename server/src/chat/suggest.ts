@@ -13,7 +13,7 @@ numbering, bullets, or extra text.
 export async function suggestQuestions(
   config: Config,
   files: Array<{ path: string; name: string }>,
-): Promise<string[]> {
+): Promise<{ questions: string[]; usage: Anthropic.Usage }> {
   const sample = files
     .slice(0, 400)
     .map((f) => (f.path ? `${f.path}/${f.name}` : f.name))
@@ -33,9 +33,10 @@ export async function suggestQuestions(
     .map((b) => b.text)
     .join('');
 
-  return text
+  const questions = text
     .split('\n')
     .map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
     .filter(Boolean)
     .slice(0, 4);
+  return { questions, usage: res.usage };
 }

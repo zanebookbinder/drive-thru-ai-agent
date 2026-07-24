@@ -1,4 +1,4 @@
-# Drive Chat
+# Drive Thru
 
 Sign in with Google, paste a Google Drive link, and have a conversation with Claude
 about the folder's contents. Answers carry inline citations that deep-link back into

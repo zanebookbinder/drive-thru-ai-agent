@@ -13,7 +13,7 @@ names and paths. Output the summary text only, no preamble.
 export async function summarizeFolder(
   config: Config,
   files: Array<{ path: string; name: string }>,
-): Promise<string> {
+): Promise<{ summary: string; usage: Anthropic.Usage }> {
   const sample = files
     .slice(0, 500)
     .map((f) => (f.path ? `${f.path}/${f.name}` : f.name))
@@ -28,9 +28,10 @@ export async function summarizeFolder(
     messages: [{ role: 'user', content: sample || '(empty folder)' }],
   });
 
-  return res.content
+  const summary = res.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)
     .join('')
     .trim();
+  return { summary, usage: res.usage };
 }

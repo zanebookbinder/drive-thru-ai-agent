@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import * as api from '../api';
-import { Citation, StoredMessage } from '../types';
+import { Citation, Spend, StoredMessage } from '../types';
 import { Answer } from './Answer';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   onAsk: (question: string) => void;
   onRetry: () => void;
   onExport: () => void;
+  spend?: Spend;
   busy: boolean;
 }
 
@@ -84,7 +85,7 @@ function AssistantMessage({ message, onRetry }: { message: StoredMessage; onRetr
   );
 }
 
-export function ChatView({ messages, onAsk, onRetry, onExport, busy }: Props) {
+export function ChatView({ messages, onAsk, onRetry, onExport, spend, busy }: Props) {
   const [question, setQuestion] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>();
   const endRef = useRef<HTMLDivElement>(null);
@@ -120,7 +121,17 @@ export function ChatView({ messages, onAsk, onRetry, onExport, busy }: Props) {
   return (
     <div className="card chat">
       <div className="chat-head">
-        <span className="muted small">Conversation</span>
+        <span className="muted small">
+          Conversation
+          {spend && (
+            <span
+              className={spend.usd >= spend.limit ? 'error' : 'muted'}
+              title="Estimated API spend this session"
+            >
+              {' · '}${spend.usd.toFixed(2)} / ${spend.limit} used
+            </span>
+          )}
+        </span>
         <button
           className="link-button small"
           onClick={onExport}

@@ -51,10 +51,17 @@ export interface Conversation {
   suggestions?: string[];
   pinned?: boolean;
   summary?: string;
+  selectedFileIds?: string[];
+}
+
+export interface Spend {
+  usd: number;
+  limit: number;
 }
 
 export interface ChatResult {
   answer: string;
   citations: Citation[];
   usage: Usage;
+  spend?: Spend;
 }

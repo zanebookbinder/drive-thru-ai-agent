@@ -70,7 +70,7 @@ const TYPES = ['Google Doc', 'Google Sheet', 'PDF', 'Text', 'JSON'];
 export function LoginScreen() {
   return (
     <div className="hero">
-      <div className="hero-badge">Drive Chat</div>
+      <div className="hero-badge">Drive Thru</div>
       <h1 className="hero-title">Chat with your Google Drive.</h1>
       <p className="hero-example">
         <Typewriter phrases={EXAMPLES} />

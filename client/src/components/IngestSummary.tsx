@@ -12,6 +12,7 @@ interface Props {
   loadingFiles: Set<string>;
   onLoadAll: () => void;
   loadingAll: boolean;
+  onSelectFiles: (fileIds: string[]) => void;
 }
 
 const PREVIEW_COUNT = 5;
@@ -69,11 +70,21 @@ export function IngestSummary({
   loadingFiles,
   onLoadAll,
   loadingAll,
+  onSelectFiles,
 }: Props) {
   const [showAll, setShowAll] = useState(false);
   const [copied, setCopied] = useState(false);
   const [query, setQuery] = useState('');
   const { files, skipped } = conversation;
+
+  const selection = new Set(conversation.selectedFileIds ?? []);
+  const loadedCount = files.filter((f) => f.loaded).length;
+  const toggleFile = (fileId: string) => {
+    const next = new Set(selection);
+    if (next.has(fileId)) next.delete(fileId);
+    else next.add(fileId);
+    onSelectFiles([...next]);
+  };
 
   const q = query.trim().toLowerCase();
   const filtered = q
@@ -157,6 +168,24 @@ export function IngestSummary({
 
       {files.length > 0 && (
         <div className="file-section">
+          <div className="scope-line">
+            {selection.size > 0 ? (
+              <>
+                <span>
+                  Chatting with <strong>{selection.size}</strong> selected file
+                  {selection.size === 1 ? '' : 's'}
+                </span>
+                <button className="link-button small" onClick={() => onSelectFiles([])}>
+                  Use all files
+                </button>
+              </>
+            ) : (
+              <span className="muted small">
+                Chatting with all {loadedCount} loaded file{loadedCount === 1 ? '' : 's'} — check
+                files below to focus the chat on just those.
+              </span>
+            )}
+          </div>
           {files.length > 8 && (
             <input
               className="file-search"
@@ -174,6 +203,17 @@ export function IngestSummary({
               const isLoading = loadingFiles.has(file.fileId);
               return (
                 <li key={file.fileId} className={file.loaded ? '' : 'unloaded'}>
+                  {file.loaded ? (
+                    <input
+                      type="checkbox"
+                      className="file-check"
+                      title="Include this file in the chat"
+                      checked={selection.has(file.fileId)}
+                      onChange={() => toggleFile(file.fileId)}
+                    />
+                  ) : (
+                    <span className="file-check-spacer" />
+                  )}
                   <span className="file-info">
                     {file.link ? (
                       <a

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as api from './api';
 import { ReauthError } from './api';
-import { Conversation, StoredMessage } from './types';
+import { Conversation, Spend, StoredMessage } from './types';
 import { downloadMarkdown } from './export';
 import { LoginScreen } from './components/LoginScreen';
 import { LinkInput } from './components/LinkInput';
@@ -26,6 +26,7 @@ export default function App() {
   const [reloading, setReloading] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+  const [spend, setSpend] = useState<Spend>();
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem(THEME_KEY) as Theme | null;
     if (stored) return stored;
@@ -48,10 +49,11 @@ export default function App() {
       .then(async (me) => {
         if (!me) return setPhase('unauthenticated');
         setEmail(me.email);
-        const { conversations, activeConversationId } = await api.fetchConversations();
+        const { conversations, activeConversationId, spend } = await api.fetchConversations();
         setConversations(conversations);
         setActiveId(activeConversationId ?? conversations[0]?.id);
         setComposing(conversations.length === 0);
+        if (spend) setSpend(spend);
         setPhase('authenticated');
       })
       .catch(() => setPhase('unauthenticated'));
@@ -129,7 +131,8 @@ export default function App() {
     patchConversation(activeId, (c) => ({ ...c, messages: [...c.messages, userMsg] }));
     setChatBusy(true);
     try {
-      const { answer, citations, usage } = await api.chat(question);
+      const { answer, citations, usage, spend } = await api.chat(question);
+      if (spend) setSpend(spend);
       patchConversation(activeId, (c) => ({
         ...c,
         messages: [...c.messages, { role: 'assistant', content: answer, citations, usage }],
@@ -193,6 +196,16 @@ export default function App() {
     }
   };
 
+  const handleSelectFiles = async (fileIds: string[]) => {
+    if (!activeId) return;
+    patchConversation(activeId, (c) => ({ ...c, selectedFileIds: fileIds }));
+    try {
+      await api.selectFiles(fileIds);
+    } catch (err) {
+      if (err instanceof ReauthError) toLogin(err.message);
+    }
+  };
+
   const handlePin = async (id: string, pinned: boolean) => {
     patchConversation(id, (c) => ({ ...c, pinned }));
     try {
@@ -231,7 +244,7 @@ export default function App() {
       />
       <main className="layout">
         <header className="topbar">
-          <span className="brand">Drive Chat</span>
+          <span className="brand">Drive Thru</span>
           <span className="row">
             <button
               className="link-button icon-only"
@@ -290,6 +303,7 @@ export default function App() {
                 loadingFiles={loadingFiles}
                 onLoadAll={handleLoadAll}
                 loadingAll={loadingAll}
+                onSelectFiles={handleSelectFiles}
               />
               <ChatView
                 key={active.id}
@@ -297,6 +311,7 @@ export default function App() {
                 onAsk={handleAsk}
                 onRetry={handleRetry}
                 onExport={() => downloadMarkdown(active)}
+                spend={spend}
                 busy={chatBusy}
               />
             </>

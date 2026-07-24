@@ -10,6 +10,7 @@ import { ingest } from '../drive/ingest';
 import { parseDriveLink } from '../drive/parseLink';
 import { answer } from '../chat/anthropic';
 import { extractCitations } from '../chat/citations';
+import { CostTracker, SPEND_LIMIT_USD, usdForAnthropicUsage } from '../chat/cost';
 import { suggestQuestions } from '../chat/suggest';
 import { summarizeFolder } from '../chat/summarize';
 import { selectDocuments } from '../context/assemble';
@@ -46,6 +47,7 @@ async function ensureCorpus(
 
 export function createApiRouter(config: Config, store: SessionStore): Router {
   const router = Router();
+  const cost = new CostTracker();
   router.use(requireSession(store));
 
   router.get('/api/conversations', (_req, res) => {
@@ -53,6 +55,7 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
     res.json({
       conversations: session.conversations,
       activeConversationId: session.activeConversationId,
+      spend: { usd: cost.get(session.userEmail), limit: SPEND_LIMIT_USD },
     });
   });
 
@@ -83,9 +86,11 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
         messages: [],
         manuallyLoaded: [],
       };
-      if (summarize) {
+      if (summarize && !cost.isOverLimit(session.userEmail)) {
         try {
-          conversation.summary = await summarizeFolder(config, conversation.files);
+          const result = await summarizeFolder(config, conversation.files);
+          conversation.summary = result.summary;
+          cost.add(session.userEmail, usdForAnthropicUsage(result.usage));
         } catch (err) {
           log.warn('folder summary failed', { conversationId: conversation.id });
         }
@@ -141,6 +146,21 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
     res.json({ conversation: conv });
   });
 
+  // Narrow chat to a subset of files (empty = all). Ids not currently loaded are
+  // simply ignored when the prompt is built.
+  router.post('/api/conversations/select-files', (req, res) => {
+    const session = res.locals.session!;
+    const conv = session.conversations.find((c) => c.id === session.activeConversationId);
+    if (!conv) {
+      res.status(400).json({ error: 'No active conversation.' });
+      return;
+    }
+    const ids = Array.isArray(req.body?.fileIds) ? req.body.fileIds.map(String) : [];
+    conv.selectedFileIds = ids;
+    store.flush();
+    res.json({ conversation: conv });
+  });
+
   router.post('/api/conversations/delete', (req, res) => {
     const session = res.locals.session!;
     const id = String(req.body?.id ?? '');
@@ -165,8 +185,14 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
       res.json({ suggestions: conv.suggestions });
       return;
     }
+    if (cost.isOverLimit(session.userEmail)) {
+      res.json({ suggestions: [] }); // over budget — client falls back to generic prompts
+      return;
+    }
     try {
-      conv.suggestions = await suggestQuestions(config, conv.files);
+      const result = await suggestQuestions(config, conv.files);
+      cost.add(session.userEmail, usdForAnthropicUsage(result.usage));
+      conv.suggestions = result.questions;
       store.flush();
       res.json({ suggestions: conv.suggestions });
     } catch (err) {
@@ -304,14 +330,36 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
       res.status(400).json({ error: 'Ask a question.' });
       return;
     }
+    if (cost.isOverLimit(session.userEmail)) {
+      res.status(402).json({
+        error: `You've reached the $${SPEND_LIMIT_USD} usage limit for this session. It resets when the server restarts.`,
+      });
+      return;
+    }
 
     try {
       const corpus = await ensureCorpus(config, store, session, conv);
-      const { included, omitted } = selectDocuments(corpus.documents, config.maxCorpusTokens);
+
+      // Scope to the user's selection if any, else use the whole corpus.
+      const selected = conv.selectedFileIds?.length ? new Set(conv.selectedFileIds) : null;
+      const scopedDocs = selected
+        ? corpus.documents.filter((d) => selected.has(d.fileId))
+        : corpus.documents;
+      const scopedManifest = selected
+        ? corpus.manifest.filter((f) => selected.has(f.id))
+        : corpus.manifest;
+
+      const { included, omitted } = selectDocuments(scopedDocs, config.maxCorpusTokens);
       const history = conv.messages.map((m) => ({ role: m.role, content: m.content }));
       const { text, usage, documents } = await answer(
         config,
-        { documents: included, manifest: corpus.manifest, omitted },
+        {
+          documents: included,
+          manifest: scopedManifest,
+          omitted,
+          scoped: Boolean(selected),
+          scopedExcluded: selected ? corpus.manifest.length - scopedManifest.length : 0,
+        },
         history,
         question,
       );
@@ -320,6 +368,8 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
         inputTokens: usage.input_tokens ?? 0,
         outputTokens: usage.output_tokens ?? 0,
       };
+
+      cost.add(session.userEmail, usdForAnthropicUsage(usage));
 
       conv.messages.push({ role: 'user', content: question });
       conv.messages.push({ role: 'assistant', content: text, citations, usage: messageUsage });
@@ -330,7 +380,12 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
         cacheRead: usage.cache_read_input_tokens ?? 0,
         cacheWrite: usage.cache_creation_input_tokens ?? 0,
       });
-      res.json({ answer: text, citations, usage: messageUsage });
+      res.json({
+        answer: text,
+        citations,
+        usage: messageUsage,
+        spend: { usd: cost.get(session.userEmail), limit: SPEND_LIMIT_USD },
+      });
     } catch (err) {
       if (err instanceof ReauthRequired) {
         res.status(401).json({ code: 'REAUTH_REQUIRED', error: err.message });

@@ -1,4 +1,4 @@
-import { ChatResult, Conversation } from './types';
+import { ChatResult, Conversation, Spend } from './types';
 
 export class ReauthError extends Error {}
 
@@ -27,6 +27,7 @@ export async function fetchMe(): Promise<{ email: string } | null> {
 export function fetchConversations(): Promise<{
   conversations: Conversation[];
   activeConversationId?: string;
+  spend?: Spend;
 }> {
   return request('/api/conversations', 'GET');
 }
@@ -67,6 +68,10 @@ export function loadAll(): Promise<{ conversation: Conversation }> {
 
 export function pinConversation(id: string, pinned: boolean): Promise<{ conversation: Conversation }> {
   return request('/api/conversations/pin', 'POST', { id, pinned });
+}
+
+export function selectFiles(fileIds: string[]): Promise<{ conversation: Conversation }> {
+  return request('/api/conversations/select-files', 'POST', { fileIds });
 }
 
 export function chat(question: string): Promise<ChatResult> {

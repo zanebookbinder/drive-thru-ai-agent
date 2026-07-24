@@ -13,6 +13,10 @@ export interface PromptContext {
   documents: CorpusDocument[];
   manifest: FileMeta[];
   omitted: number;
+  // True when the user narrowed the chat to a subset of files.
+  scoped?: boolean;
+  // Folder files excluded by that narrowing (for an honest "there may be more" note).
+  scopedExcluded?: number;
 }
 
 type HistoryTurn = { role: 'user' | 'assistant'; content: string };
@@ -20,6 +24,14 @@ type HistoryTurn = { role: 'user' | 'assistant'; content: string };
 // Leave the input comfortably under the 1M-token context window; output is
 // counted separately, so this is headroom against count-vs-generation variance.
 const MAX_INPUT_TOKENS = 900_000;
+
+function scopedNote(shown: number, excluded: number): string {
+  const others =
+    excluded > 0
+      ? ` ${excluded} other file(s) in the folder were NOT included in this chat. If the answer isn't in the included file(s), say so, and add that other files in the folder weren't selected — the answer may be in one of those, so the user could select more files or switch back to "all files".`
+      : '';
+  return `\n\n[This conversation is narrowed to the ${shown} file(s) above; the manifest and text cover only those. Answer only from them.${others}]`;
+}
 
 function omissionNote(shown: number, omitted: number): string {
   if (omitted <= 0) return '';
@@ -32,9 +44,14 @@ function buildMessages(
   documents: CorpusDocument[],
   manifest: FileMeta[],
   omitted: number,
+  scoped: boolean,
+  scopedExcluded: number,
   history: HistoryTurn[],
   question: string,
 ): Anthropic.MessageParam[] {
+  const note =
+    (scoped ? scopedNote(documents.length, scopedExcluded) : '') +
+    omissionNote(documents.length, omitted);
   return [
     {
       role: 'user',
@@ -42,7 +59,7 @@ function buildMessages(
         { type: 'text', text: buildManifest(manifest) },
         {
           type: 'text',
-          text: buildDocumentBlocks(documents) + omissionNote(documents.length, omitted),
+          text: buildDocumentBlocks(documents) + note,
           cache_control: { type: 'ephemeral' },
         },
       ],
@@ -67,7 +84,7 @@ async function fitDocuments(
   let omitted = context.omitted;
 
   for (let attempt = 0; attempt < 6 && documents.length > 0; attempt++) {
-    const messages = buildMessages(documents, context.manifest, omitted, history, question);
+    const messages = buildMessages(documents, context.manifest, omitted, Boolean(context.scoped), context.scopedExcluded ?? 0, history, question);
     const { input_tokens } = await client.messages.countTokens({ model, system: SYSTEM, messages });
     if (input_tokens <= MAX_INPUT_TOKENS) break;
 
@@ -95,7 +112,7 @@ export async function answer(
     max_tokens: 4096,
     thinking: { type: 'disabled' },
     system: SYSTEM,
-    messages: buildMessages(fitted.documents, context.manifest, fitted.omitted, history, question),
+    messages: buildMessages(fitted.documents, context.manifest, fitted.omitted, Boolean(context.scoped), context.scopedExcluded ?? 0, history, question),
   });
 
   const text = response.content

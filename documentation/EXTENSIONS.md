@@ -3,15 +3,19 @@
 Deliberately deferred from v1. Ordered by what would be built first if this
 became a real product, not by difficulty.
 
-> **Some of these have since shipped.** Persistence (§4) is built — a JSON-backed
-> session store holding auth + conversation history, with document text kept
-> ephemeral. Sheets export and larger-folder handling (a manifest + measured
-> token budget, plus a per-file load-on-demand gate) are in. Several **Product**
-> items (§6) now exist: conversation resume via the sidebar, reload/copy-link,
-> and a batch of client features (starter questions, export to markdown, file
-> search, per-answer sources, theme toggle, rename/delete conversations). Still
-> open and highest-value: the agentic `read_file` retrieval loop (§2.1) and the
-> eval harness (§5.1).
+> **Already shipped** (was deferred, now built — see `CLAUDE.md`): file-backed
+> persistence of auth + conversation history (document text stays ephemeral);
+> Sheets export; the size-gated ingest with per-file load-on-demand; a manifest +
+> `count_tokens`-measured budget for large folders; per-conversation file
+> selection to scope the chat; a **per-user $5 spend cap** with running-spend
+> display; and a batch of product features — conversation sidebar/resume,
+> reload/copy-link, export to Markdown, folder summary, generated starter
+> questions, file search, per-answer sources, theme toggle, rename/delete/pin.
+>
+> **Near-term production blockers** (the two things between "demo" and "public"):
+> publishing past Google's Testing status (§1.5) and making the persisted session
+> file durable in production (§4). Highest-value quality work remains the agentic
+> `read_file` retrieval loop (§2.1) and the eval harness (§5.1).
 
 Listing known limitations accurately is a stronger signal than a longer feature
 list. Everything here was considered and cut for a stated reason.
@@ -20,7 +24,7 @@ list. Everything here was considered and cut for a stated reason.
 
 ## 1. Security
 
-### 1.1 Per-file access control — *first priority*
+### 1.1 Per-file access control — *first priority for multi-user*
 
 v1 inherits whatever the authenticated user can see. That is correct for a
 single-user app and **unsafe the moment a corpus is shared or cached across
@@ -37,7 +41,7 @@ to a user who lost access is a data leak with an audit trail pointing at you.
 ### 1.2 Prompt injection hardening
 
 v1 mitigates but does not solve (`ARCHITECTURE.md` §9.1). Beyond the current
-delimiting, read-only tool surface, and manifest-scoped `read_file`:
+delimiting and read-only tool surface:
 
 - A classifier pass over ingested text flagging imperative language directed at
   an assistant, surfaced to the user as "this document contains text that looks
@@ -57,30 +61,47 @@ re-deriving §9.1 from scratch.
 ### 1.3 Token and credential handling
 
 - Rotate `TOKEN_ENCRYPTION_KEY` with envelope encryption rather than a single
-  static key
+  static key (both tokens are already AES-256-GCM encrypted at rest, but under
+  one static key)
 - Move refresh tokens to a KMS or secret manager rather than app-managed
   encryption
 - Explicit revocation endpoint calling Google's token revocation, so "sign out"
-  means something on Google's side too
-- Publish the app past Testing status, which requires the restricted-scope
-  security assessment (`ARCHITECTURE.md` §3.2) and removes the seven-day
-  refresh token expiry
+  means something on Google's side too (logout is currently soft — it clears the
+  cookie but keeps the session for resume)
 
 ### 1.4 Standard hardening
 
-Rate limiting per session on ingest and chat; CSRF tokens on state-changing
-routes beyond the OAuth `state`; a strict CSP; dependency scanning; audit
-logging of which user ingested which folder and when (metadata only — never
-content).
+Per-session **request** rate limiting on ingest and chat (a per-user *cost* cap
+of $5 exists, but not a requests-per-minute limit); CSRF tokens on state-changing
+routes beyond the OAuth `state`; a strict CSP; dependency scanning; audit logging
+of which user ingested which folder and when (metadata only — never content).
+
+### 1.5 Publish past Testing → public launch — *production blocker*
+
+The OAuth consent screen is in **Testing** status. Consequences: only listed
+test users can sign in, and refresh tokens expire after seven days
+(`ARCHITECTURE.md` §3.3). To let anyone sign in, the app must move to Production,
+and because `drive.readonly` is a **restricted scope** that requires a
+third-party security assessment (CASA) — weeks of work and cost
+(`ARCHITECTURE.md` §3.2).
+
+The cheaper route to a public launch is to add the **Google Picker + `drive.file`
+scope** path (see §6) alongside the paste-link flow: the user picks specific
+files via Google's UI, which is a non-sensitive scope needing no assessment.
+Offer both — pasted links under the restricted scope for verified/internal users,
+the Picker for everyone else.
 
 ---
 
 ## 2. Scale and retrieval
 
-### 2.1 Hybrid retrieval — Tier 3
+### 2.1 Agentic `read_file` loop, then hybrid retrieval
 
-`ARCHITECTURE.md` §5.3 defines the threshold: folders too large for even the
-manifest-plus-`read_file` approach. At that point:
+Today a large folder is handled by sending the file manifest plus as many
+document bodies as fit a measured token budget (`ARCHITECTURE.md` §5.3). The
+next step is the agentic **`read_file(fileId)` tool** so the model pulls only the
+files a question needs, instead of a budget-fitted prefix — cheaper and more
+relevant. Beyond that, for folders too large for even manifest-plus-`read_file`:
 
 - Chunk **structure-aware**, not fixed-width — headings for Docs, per-slide,
   per-sheet row blocks, per-page for PDFs
@@ -93,8 +114,8 @@ manifest-plus-`read_file` approach. At that point:
   supplements the agent loop rather than replacing it, or aggregate questions
   regress (`ARCHITECTURE.md` §5.1)
 
-Build the eval harness (§5.1 below) **before** this, not after. Otherwise there
-is no way to know whether retrieval improved anything.
+Build the eval harness (§5.1 below) **before** the retrieval rework, not after.
+Otherwise there is no way to know whether it improved anything.
 
 ### 2.2 Ingestion at scale
 
@@ -114,10 +135,14 @@ described there.
 
 ## 3. Coverage
 
-- **OCR** for scanned PDFs. Currently they extract as empty and land in the
-  skip list. Tesseract, or a vision model per page.
+- **Google Slides.** Currently deferred — decks land in the skip list. Export via
+  `files.export` to text, one block per slide.
+- **OCR** for scanned PDFs. Currently they extract as empty. Tesseract, or a
+  vision model per page.
 - **Images** via a vision model, either described at ingest or read on demand
   through a `describe_image` tool.
+- **Office `.xlsx` / `.pptx`** uploaded files (as opposed to native Google
+  Sheets/Slides), via a parser library.
 - **Audio and video** via transcription — Drive folders contain a lot of
   meeting recordings.
 - **Nested archives** (.zip) — currently skipped, occasionally where the
@@ -129,31 +154,29 @@ described there.
 
 ---
 
-## 4. Persistence
+## 4. Durable persistence in production — *production blocker*
 
-**SQLite for sessions**, roughly thirty lines, surviving restarts so users are
-not logged out by every deploy.
+Session auth and conversation metadata/history **already persist** to
+`server/.sessions.json` (both tokens AES-256-GCM encrypted; document text is
+never written). The `ARCHITECTURE.md` §8.1 boundary holds: tokens, identity, and
+conversation metadata persist; exported document text does not.
 
-The boundary from `ARCHITECTURE.md` §8.1 holds without exception: tokens,
-session identity, and corpus *metadata* persist. **Exported document text never
-does.** Re-authenticating after a restart is fine. Re-ingesting is fine.
-Recovering documents is not a feature.
+What remains is making that durable in production. Container filesystems are
+**ephemeral** (`DEPLOYMENT.md` §5), so the JSON file is lost on every deploy —
+which resets everyone's conversations and logins. Options, in order of effort: a
+mounted volume (Render Disks, Fly Volumes); a hosted SQLite (Turso/libSQL); or
+managed Postgres (often less work than making a file durable in a container).
 
-Note the deployment consequence in `DEPLOYMENT.md` §5 — container filesystems
-are ephemeral, so SQLite needs a mounted volume or a hosted equivalent, and
-managed Postgres is often less work than making SQLite durable.
-
-If document persistence is ever genuinely wanted — for conversation resume —
-it needs its own decision with encryption at rest, an explicit user-facing
-retention setting, a delete path, and a revised §8 in the architecture doc.
-It is not a small change and should not arrive as a side effect of adding a
-database.
+If document persistence is ever genuinely wanted — for offline conversation
+resume without a re-ingest — it needs its own decision with an explicit
+user-facing retention setting, a delete path, and a revised §8 in the
+architecture doc. It should not arrive as a side effect of adding a database.
 
 ---
 
 ## 5. Quality
 
-### 5.1 Eval harness — *highest-value item here*
+### 5.1 Eval harness — *highest-value quality item*
 
 A golden set of question/answer pairs over a fixed corpus, measuring:
 
@@ -164,8 +187,7 @@ A golden set of question/answer pairs over a fixed corpus, measuring:
 
 This is what turns every other item on this list from an opinion into a
 measurement. It is also the prerequisite for §2.1: without it, "we added
-retrieval" is a claim with no evidence attached, and §5.5 of the architecture
-doc stays an open question rather than a resolved tradeoff.
+retrieval" is a claim with no evidence attached.
 
 ### 5.2 Grounding verification
 
@@ -177,36 +199,33 @@ citation that does not support it.
 ### 5.3 Native citations
 
 Anthropic's citations feature is more precise than manual `[n]` markers.
-Deferred in v1 because it constrains document passing in ways that complicate
-the caching strategy (`ARCHITECTURE.md` §6.2). Worth revisiting once the eval
-harness can measure whether it actually improves citation precision.
+Deferred because it constrains document passing in ways that complicate the
+caching strategy (`ARCHITECTURE.md` §6.2). Worth revisiting once the eval harness
+can measure whether it actually improves citation precision.
 
 ---
 
 ## 6. Product
 
 - **Google Picker** alongside pasted links, enabling a `drive.file` path for
-  users who cannot or will not grant `drive.readonly` — and a route to public
-  launch without the restricted-scope assessment
+  users who cannot or will not grant `drive.readonly` — and the route to public
+  launch without the restricted-scope assessment (see §1.5)
 - **Multiple folders** in one conversation
-- **Conversation history**, which requires §4 and a real answer on document
-  retention
-- **Export the conversation** to Docs or Markdown, with citations preserved
-- **Suggested questions** generated at ingest from the manifest, solving the
-  blank-page problem
-- **Cost controls** — estimate and display token cost before ingesting a large
-  folder, since a 500-file folder is a real spend
+- **Pre-ingest cost estimate** — the per-user $5 cap and running-spend display
+  exist; still missing is an *estimate shown before* ingesting a large folder, so
+  a 500-file spend is visible up front
 - **Answer confidence** signals when a question is only weakly supported
 
 ---
 
 ## 7. Operations
 
-Cost attribution per user and per corpus; alerting on ingest failure rate,
-p95 latency, and cache hit ratio (a collapsed hit ratio means costs several
-times the model in `ARCHITECTURE.md` §5.2); graceful degradation to a smaller
-model under load; and a data processing agreement plus ZDR arrangement before
-any customer-facing deployment (`ARCHITECTURE.md` §8.4).
+Per-corpus cost attribution (per-*user* spend is now tracked for the $5 cap, but
+not persisted or attributed per corpus); alerting on ingest failure rate, p95
+latency, and cache hit ratio (a collapsed hit ratio means costs several times the
+model in `ARCHITECTURE.md` §5.2); graceful degradation to a smaller model under
+load; and a data processing agreement plus ZDR arrangement before any
+customer-facing deployment (`ARCHITECTURE.md` §8.4).
 
 ---
 
