@@ -1,0 +1,25 @@
+{
+  "name": "google-drive-ai-agent",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Chat with the contents of a Google Drive folder, with citations that deep-link back into Drive.",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "overrides": {
+    "google-auth-library": "10.9.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "node server/dist/index.js",
+    "test": "npm run test -w server && npm run test -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

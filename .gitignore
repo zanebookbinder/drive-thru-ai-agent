@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.tmp/
+.sessions.json
+.sessions.json.tmp
+.env
+.env.local
+*.log
+.DS_Store
