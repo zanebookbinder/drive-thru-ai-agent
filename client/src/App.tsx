@@ -54,6 +54,15 @@ export default function App() {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
+  // Surface an aborted Google sign-in (the callback redirects here with ?auth=denied).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') === 'denied') {
+      setIngestError('Sign-in was cancelled or not permitted. Please try again.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     api
       .fetchMe()

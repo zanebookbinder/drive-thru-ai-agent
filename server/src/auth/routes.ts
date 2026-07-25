@@ -31,6 +31,16 @@ export function createAuthRouter(config: Config, store: SessionStore): Router {
 
   router.get('/auth/google/callback', async (req, res, next) => {
     try {
+      // Google returns ?error=... (e.g. access_denied) when the user cancels or
+      // is not cleared to consent. There's no code to exchange — send them back
+      // to the login screen with a note rather than failing on a missing code.
+      if (req.query.error) {
+        log.info('oauth denied', { error: String(req.query.error) });
+        res.clearCookie('oauth_tx');
+        res.redirect(`${config.clientOrigin}/?auth=denied`);
+        return;
+      }
+
       const tx = verify<OAuthTx>(req.cookies?.oauth_tx, config.sessionSecret);
       if (!tx || tx.state !== req.query.state) {
         res.status(400).send('Invalid OAuth state. Please try signing in again.');
