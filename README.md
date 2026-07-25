@@ -30,8 +30,6 @@ No database, queue, or cache server. Corpora (document text) live in memory and 
 
 ## Screenshots
 
-> _Drop the images into `documentation/screenshots/` with these names and they'll render here._
-
 **Landing / sign-in**
 
 ![Login screen](./documentation/screenshots/login.png)
@@ -55,7 +53,7 @@ No database, queue, or cache server. Corpora (document text) live in memory and 
 
 **Chat & citations**
 - **Grounded answers with inline `[n]` citations** that deep-link to the source file in Drive — page-anchored (`[n:p3]`) for PDFs.
-- **File scoping** — chat with everything by default, or check specific files to focus the conversation on just those (keeps the token count, and cost, down). When scoped, the answer notes that other files weren't consulted.
+- **File scoping** — a **"Select files to chat with"** dialog (opened from the composer) lets you pick exactly which files Claude reads. Default is all loaded files; you can narrow to a subset to focus answers and cut token cost, or select none. Checking a not-yet-loaded file loads it on demand, and the server guarantees every selected file is loaded before answering. When scoped, the answer notes that other files weren't consulted.
 - **Starter questions** suggested for each folder, plus **copy answer**, **view sources**, **per-message token usage**, and **Retry** on error.
 - **Export** any conversation to Markdown.
 
@@ -99,7 +97,7 @@ Then open `http://localhost:5173`. You'll also need an Anthropic API key in `.en
 | `npm run dev` | Server + client with hot reload |
 | `npm run build` | Build the client bundle, then compile the server |
 | `npm start` | Run the built server (also serves the client bundle in production) |
-| `npm test` | Run both test suites (~54 tests) |
+| `npm test` | Run both test suites (~95 tests) |
 
 ## How it works
 
@@ -107,6 +105,33 @@ Then open `http://localhost:5173`. You'll also need an Anthropic API key in `.en
 2. **Ingest** — The pasted link resolves to a file ID. A folder is enumerated (paginated, shortcut- and cycle-safe); a single file becomes a one-file corpus. Each file is exported to text with bounded concurrency and per-file error isolation — one unreadable file lands in the skip list rather than aborting the ingest.
 3. **Context** — The prompt carries the **full file manifest** plus as many document bodies as fit the context window. The fit is *measured* with `count_tokens` and trimmed to fit (a character estimate undercounts dense content). Each document is numbered `[1]…[n]`.
 4. **Chat** — Documents, conversation history, and the question go to Claude. Document text is wrapped in labelled, untrusted-content boundaries and carries a prompt-cache breakpoint. The model cites inline; the client resolves each `[n]` / `[n:p<page>]` marker to a Drive deep link.
+
+## Testing
+
+~95 tests (Vitest), colocated as `*.test.ts(x)`. Run with `npm test`.
+
+The strategy is to **unit-test the pure, tricky logic** where a subtle bug is silent
+and expensive, plus **route/auth integration tests** (`supertest`) over the paths that
+recently broke in production. Network-only edges are left to manual verification.
+
+**Covered**
+- **Chat scoping** — the tri-state selection (all / none / subset) and the "which selected files still need loading" logic that guarantees scoping never sends Claude zero documents (`api/scope`).
+- **HTTP routes** (`supertest`) — the session guard (an `/api` request 401s, but `/` falls through to the SPA — the exact bug that shipped), and `select-files` persisting all three selection states.
+- **Auth flow** (`supertest` + unit) — the OAuth callback redirecting `access_denied` back to login, the `/auth/google` PKCE redirect, logout clearing the cookie, and the S256 PKCE challenge / auth-URL construction (`auth/routes`, `auth/oauth`).
+- **Drive traversal** — pagination, shortcut resolution, and cycle safety against a fake Drive (`drive/traverse`).
+- **Prompt building** — `buildMessages` layout (manifest → cached docs → history → question) and the scoped/omission notes (`chat/anthropic`), plus manifest & untrusted-document boundaries (`chat/prompt`).
+- **Context assembly** — token estimation and budget-fitted document selection (`context/assemble`).
+- **Citations** — `[n]` / `[n:p<page>]` parsing (`chat/citations`) and safe markdown + citation-link rendering (`Answer`).
+- **Auth crypto / persistence / sessions** — AES-256-GCM round-trip, HMAC signing, encrypted save/load, and the idle-sweep guarantee (`auth/crypto`, `store/*`).
+- **Drive parsing / Sheets flattening / retry & spend math** — (`drive/parseLink`, `drive/sheets`, `util/retry`, `chat/cost`).
+- **Client** — the `FileSelectModal` tri-state (default-all, uncheck-to-subset, select none/all, check-to-load), link parsing, and Markdown export.
+
+Every production bug fixed during deployment now has a regression test: the API guard swallowing `/`, the OAuth `access_denied` redirect, and scoping silently loading zero documents.
+
+**Remaining gaps (known)**
+- **Drive export untested** — `export` (Docs/PDF/text) and the OAuth `getToken`/`fetchEmail` calls hit Google directly and have no mocked coverage.
+- **No full `POST /api/chat` integration test** — the scoping, force-load, and spend-gate *pieces* are unit-tested, but not wired end-to-end through a mocked Drive + Anthropic.
+- **Most other client components** (`ChatView`, `IngestSummary`, `Sidebar`, `LinkInput`, the `App` state machine) are verified by hand.
 
 ## Key decisions & tradeoffs
 
@@ -145,4 +170,10 @@ A few choices worth calling out — the full rationale lives in [`documentation/
 
 ## Deployment
 
-A single long-running Node service (Render / Railway / Fly.io). One origin serves both the built client bundle and the API, so there is no CORS to configure and the session cookie stays first-party. Build with `npm ci && npm run build`, start with `node server/dist/index.js`, health check at `/healthz`. Full walkthrough — including the two required redirect URIs and the note that free-tier sleep wipes in-memory sessions (returning users re-authenticate, correct behaviour given the ephemerality design) — in [`documentation/DEPLOYMENT.md`](./documentation/DEPLOYMENT.md).
+A single long-running Node service (Render / Railway / Fly.io). One origin serves both the built client bundle and the API, so there is no CORS to configure and the session cookie stays first-party. Build with `npm ci --include=dev && npm run build`, start with `node server/dist/index.js`, health check at `/healthz`.
+
+- **One-click Render deploy** — [`render.yaml`](./render.yaml) is a Blueprint: connect the repo in Render (New → Blueprint) and it provisions the service and prompts for the secrets. `NODE_ENV=production` makes the server serve the client bundle; `--include=dev` in the build forces the build-only devDependencies (`tsc`, `vite`, types) to install.
+- **Keep-warm** — [`.github/workflows/keep-warm.yml`](./.github/workflows/keep-warm.yml) pings `/healthz` every 5 minutes so the free tier doesn't cold-start.
+- **OAuth redirect URIs** — register both the localhost and deployed `…/auth/google/callback` URLs, byte-for-byte; `redirect_uri_mismatch` is almost always this.
+
+Free-tier sleep (without keep-warm) wipes in-memory sessions, so returning users re-authenticate — correct behaviour given the ephemerality design. Full walkthrough in [`documentation/DEPLOYMENT.md`](./documentation/DEPLOYMENT.md).

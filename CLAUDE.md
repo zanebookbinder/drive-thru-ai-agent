@@ -36,7 +36,12 @@ Sheets API enabled, redirect URI `http://localhost:3000/auth/google/callback`,
 your email added as a Test user) and an Anthropic API key. Full setup:
 [`README.md`](./README.md).
 
-`npm test` runs both suites (~54 tests). `npm run build` compiles client + server.
+`npm test` runs both suites (~95 tests). `npm run build` compiles client + server.
+Tests cover pure logic (scope/tri-state, context assembly, citations, prompt/anthropic,
+crypto, persistence/sessions, parsing, cost, retry), route + auth integration
+(`supertest`: the `/api` guard, select-files, OAuth callback/redirects), Drive
+traversal (fake client), and the file-select UI. Remaining gaps: Drive export, a
+full `/api/chat` integration, and most other client components (see README → Testing).
 
 ## Repo layout
 
@@ -45,8 +50,9 @@ client/src/
   App.tsx              session/conversation state machine
   api.ts               fetch helpers
   components/
-    LoginScreen, LinkInput, Sidebar, IngestSummary,
-    FileTypeIcon, ChatView, Answer   (Answer = safe markdown + citation links)
+    LoginScreen, LinkInput, Sidebar, IngestSummary (read-only folder view),
+    FileSelectModal (choose which files the chat reads), FileTypeIcon,
+    Logo (theme-aware wordmark), ChatView, Answer (safe markdown + citation links)
 server/src/
   index.ts             express app, session store wiring, temp cleanup
   auth/                PKCE OAuth, AES-256-GCM crypto, session middleware
@@ -75,8 +81,21 @@ documentation/         the original spec (ARCHITECTURE/IMPLEMENTATION/
    as many document bodies as fit the context window. The fit is *measured* with
    `count_tokens` and trimmed (a char estimate undercounts dense content). Claude
    answers with `[n]` markers; the server resolves them to Drive deep links.
-4. **On-demand load** — `POST /api/conversations/load-file` parses one gated file
-   and remembers it so it survives a re-ingest.
+4. **File scoping** — `selectedFileIds` is tri-state: absent = all loaded files,
+   `[]` = none, `[ids]` = those. Set via `POST /api/conversations/select-files`
+   from the FileSelectModal. Before answering, the chat handler force-loads any
+   selected-but-unloaded file so scoping can never silently send zero documents.
+5. **On-demand load** — `POST /api/conversations/load-file` parses one gated file
+   and remembers it (in `manuallyLoaded`) so it survives a re-ingest.
+
+## Deployment
+
+Single Node service, one origin serves API + client bundle. `render.yaml` is a
+Render Blueprint (`NODE_ENV=production` serves the bundle; `npm ci --include=dev`
+in the build installs the build-only devDeps). `.github/workflows/keep-warm.yml`
+pings `/healthz` every 5 min to dodge free-tier cold starts. The API's
+`requireSession` guard is scoped to `/api` so non-API paths fall through to the
+static SPA; the OAuth callback redirects to `/?auth=denied` on `error=...`.
 
 ## Key design decisions (and where they're documented)
 

@@ -5,9 +5,22 @@
 > AES-256-GCM encrypted). §5's note therefore applies today, not just "when
 > persistence arrives" — a container's ephemeral filesystem loses this on deploy,
 > so mount a volume or move it to a store if you want conversations to survive
-> across deploys. Build/start commands are unchanged (`npm ci && npm run build`,
-> `node server/dist/index.js`, health `/healthz`). Config gained
-> `SESSION_IDLE_MS` default 24h.
+> across deploys. Config gained `SESSION_IDLE_MS` (default 24h).
+>
+> **Now live on Render** via [`render.yaml`](../render.yaml) (Blueprint). Notes
+> that differ from §3 below:
+> - Build command is **`npm ci --include=dev && npm run build`** — `NODE_ENV=production`
+>   makes npm omit devDependencies, but the build needs `tsc`/`vite`/types, so dev
+>   deps are force-included. (`react`/`react-dom` are now declared as real
+>   `dependencies`, not just transitive peers of the test tooling.)
+> - `NODE_ENV=production` is **required** — it's the flag that makes the server
+>   serve `client/dist`.
+> - The API's `requireSession` guard is scoped to `/api` so `/` and other SPA
+>   paths reach `express.static` instead of 401-ing.
+> - The OAuth callback handles `?error=…` (e.g. `access_denied`) by redirecting to
+>   `/?auth=denied` instead of failing on a missing code.
+> - [`.github/workflows/keep-warm.yml`](../.github/workflows/keep-warm.yml) pings
+>   `/healthz` every 5 min to avoid free-tier cold starts.
 
 ## 1. Recommendation
 

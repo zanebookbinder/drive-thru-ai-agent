@@ -3,6 +3,5 @@ export const SIZE_LIMIT_LABEL = '20 KB';
 export const MAX_EAGER_FILES = 100;
 
 export const GATE_NOTE =
-  `Files over ${SIZE_LIMIT_LABEL} aren't read automatically (and only the first ` +
-  `${MAX_EAGER_FILES} files are loaded by default). They're listed with a Load ` +
-  `button so you can add any you need.`;
+  `Drive Thru will automatically load the first ${MAX_EAGER_FILES} files under ` +
+  `${SIZE_LIMIT_LABEL}. You can choose to load larger files later.`;

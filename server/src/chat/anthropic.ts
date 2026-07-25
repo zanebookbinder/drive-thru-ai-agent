@@ -25,7 +25,7 @@ type HistoryTurn = { role: 'user' | 'assistant'; content: string };
 // counted separately, so this is headroom against count-vs-generation variance.
 const MAX_INPUT_TOKENS = 900_000;
 
-function scopedNote(shown: number, excluded: number): string {
+export function scopedNote(shown: number, excluded: number): string {
   const others =
     excluded > 0
       ? ` ${excluded} other file(s) in the folder were NOT included in this chat. If the answer isn't in the included file(s), say so, and add that other files in the folder weren't selected — the answer may be in one of those, so the user could select more files or switch back to "all files".`
@@ -33,14 +33,14 @@ function scopedNote(shown: number, excluded: number): string {
   return `\n\n[This conversation is narrowed to the ${shown} file(s) above; the manifest and text cover only those. Answer only from them.${others}]`;
 }
 
-function omissionNote(shown: number, omitted: number): string {
+export function omissionNote(shown: number, omitted: number): string {
   if (omitted <= 0) return '';
   return `\n\n[Full text is loaded for ${shown} of ${
     shown + omitted
   } files. The rest appear in the manifest above but their contents are not loaded — the folder is too large to load in full.]`;
 }
 
-function buildMessages(
+export function buildMessages(
   documents: CorpusDocument[],
   manifest: FileMeta[],
   omitted: number,

@@ -14,6 +14,7 @@ import { CostTracker, SPEND_LIMIT_USD, usdForAnthropicUsage } from '../chat/cost
 import { suggestQuestions } from '../chat/suggest';
 import { summarizeFolder } from '../chat/summarize';
 import { selectDocuments } from '../context/assemble';
+import { resolveSelection, scopeCorpus, selectedNeedingLoad } from './scope';
 import { Corpus, Session, StoredConversation } from '../types';
 import { limitConcurrency } from '../util/limit';
 import { log } from '../util/log';
@@ -56,11 +57,10 @@ async function ensureSelectedLoaded(
   conv: StoredConversation,
   corpus: Corpus,
 ): Promise<void> {
-  const ids = conv.selectedFileIds;
-  if (!ids || ids.length === 0) return;
-
-  const loaded = new Set(corpus.documents.map((d) => d.fileId));
-  const missing = ids.filter((id) => !loaded.has(id));
+  const missing = selectedNeedingLoad(
+    conv.selectedFileIds,
+    corpus.documents.map((d) => d.fileId),
+  );
   if (missing.length === 0) return;
 
   const client = new DriveClient(config, store, session);
@@ -382,24 +382,19 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
 
       // Scope to the user's selection when one is set (an empty selection means
       // no files); an absent selection uses the whole loaded corpus.
-      const selected = conv.selectedFileIds ? new Set(conv.selectedFileIds) : null;
-      const scopedDocs = selected
-        ? corpus.documents.filter((d) => selected.has(d.fileId))
-        : corpus.documents;
-      const scopedManifest = selected
-        ? corpus.manifest.filter((f) => selected.has(f.id))
-        : corpus.manifest;
+      const selected = resolveSelection(conv.selectedFileIds);
+      const scoped = scopeCorpus(selected, corpus);
 
-      const { included, omitted } = selectDocuments(scopedDocs, config.maxCorpusTokens);
+      const { included, omitted } = selectDocuments(scoped.documents, config.maxCorpusTokens);
       const history = conv.messages.map((m) => ({ role: m.role, content: m.content }));
       const { text, usage, documents } = await answer(
         config,
         {
           documents: included,
-          manifest: scopedManifest,
+          manifest: scoped.manifest,
           omitted,
           scoped: Boolean(selected),
-          scopedExcluded: selected ? corpus.manifest.length - scopedManifest.length : 0,
+          scopedExcluded: scoped.excluded,
         },
         history,
         question,
