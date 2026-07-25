@@ -6,7 +6,9 @@ services:
     name: drive-thru
     runtime: node
     plan: free # $0; sleeps after ~15 min idle (cold start ~30s, sessions reset — by design)
-    buildCommand: npm ci && npm run build
+    # --include=dev forces devDependencies (tsc, vite, @types/*) to install even
+    # though NODE_ENV=production, which npm otherwise treats as "omit dev".
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node server/dist/index.js
     healthCheckPath: /healthz
     autoDeploy: true # redeploy on every push to the default branch
