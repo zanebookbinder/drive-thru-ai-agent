@@ -83,7 +83,9 @@ async function ensureSelectedLoaded(
 export function createApiRouter(config: Config, store: SessionStore): Router {
   const router = Router();
   const cost = new CostTracker();
-  router.use(requireSession(store));
+  // Guard only the API surface — leaving non-/api paths (the static client bundle
+  // and its SPA routes) to fall through to express.static in production.
+  router.use('/api', requireSession(store));
 
   router.get('/api/conversations', (_req, res) => {
     const session = res.locals.session!;
