@@ -145,8 +145,38 @@ body {
   align-items: center;
 }
 
-.brand {
-  font-weight: 600;
+/* Wordmark lockup: both theme variants render, CSS shows the fitting one. */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.logo img {
+  display: block;
+  width: auto;
+}
+
+.logo .logo-light {
+  display: none;
+}
+.logo .logo-dark {
+  display: block;
+}
+
+:root[data-theme='light'] .logo .logo-light {
+  display: block;
+}
+:root[data-theme='light'] .logo .logo-dark {
+  display: none;
+}
+
+.brand img {
+  height: 24px;
+}
+
+.hero-logo img {
+  height: 40px;
 }
 
 .row {
@@ -225,6 +255,25 @@ input[type='text'] {
   cursor: default;
 }
 
+/* "Open" + Drive logo link — no underline. */
+.open-drive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.open-drive:hover {
+  text-decoration: none;
+}
+
+.open-drive svg {
+  display: block;
+}
+
 .summary-head {
   gap: 12px;
   align-items: baseline;
@@ -252,10 +301,34 @@ input[type='text'] {
   overflow: hidden;
 }
 
-/* When expanded, cap the height so a 1000-file folder stays compact and scrolls. */
+/* Cap the height so a 1000-file folder stays compact and scrolls. Force a classic,
+   always-visible scrollbar (macOS hides overlay scrollbars otherwise): an explicit
+   width switches WebKit off overlay mode, and a painted track + high-contrast thumb
+   make it obvious the list scrolls even before you touch it. */
 .file-list.scroll {
-  max-height: 240px;
-  overflow-y: auto;
+  max-height: 196px;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--border);
+}
+
+.file-list.scroll::-webkit-scrollbar {
+  width: 12px;
+}
+
+.file-list.scroll::-webkit-scrollbar-track {
+  background: var(--border);
+}
+
+.file-list.scroll::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 8px;
+  border: 3px solid var(--border);
+}
+
+.file-list.scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--text);
 }
 
 .file-list li {
@@ -303,7 +376,7 @@ input[type='text'] {
 
 .file-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   margin-left: auto;
   flex-shrink: 0;
@@ -350,29 +423,6 @@ input[type='text'] {
   font-variant-numeric: tabular-nums;
   min-width: 56px;
   text-align: right;
-}
-
-.load-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font: inherit;
-  font-size: 12px;
-  color: var(--accent);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px 9px;
-  cursor: pointer;
-}
-
-.load-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.load-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .file-list li.unloaded .file-name {
@@ -468,6 +518,141 @@ input[type='text'] {
 
 .composer input {
   margin: 0;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Secondary button: outlined, used for the file-scope control next to Ask. */
+.button.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.button.ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- "Select files to chat with" dialog --- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: min(580px, 100%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.modal-note {
+  padding: 14px 20px 4px;
+}
+
+.modal-note p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) var(--border);
+  flex: 1;
+}
+
+.modal-file-list::-webkit-scrollbar {
+  width: 12px;
+}
+.modal-file-list::-webkit-scrollbar-track {
+  background: var(--border);
+}
+.modal-file-list::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 8px;
+  border: 3px solid var(--border);
+}
+.modal-file-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text);
+}
+
+.modal-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.modal-file:last-child {
+  border-bottom: none;
+}
+
+.modal-file:hover {
+  background: var(--card-2);
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.not-loaded-tag {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
 }
 
 /* --- Sidebar items with rename/delete actions --- */
@@ -780,17 +965,6 @@ input[type='text'] {
   gap: 18px;
 }
 
-.hero-badge {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px 14px;
-}
-
 .hero-title {
   margin: 4px 0 0;
   font-size: 34px;
@@ -958,14 +1132,6 @@ input[type='text'] {
 }
 
 /* --- File selection for chat scope --- */
-.scope-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
 .file-check {
   width: 15px;
   height: 15px;
@@ -973,9 +1139,4 @@ input[type='text'] {
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--accent);
-}
-
-.file-check-spacer {
-  width: 15px;
-  flex-shrink: 0;
 }

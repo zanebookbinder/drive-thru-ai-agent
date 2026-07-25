@@ -8,11 +8,21 @@ import { LinkInput } from './components/LinkInput';
 import { IngestSummary } from './components/IngestSummary';
 import { ChatView } from './components/ChatView';
 import { Sidebar } from './components/Sidebar';
+import { Logo } from './components/Logo';
+import { FileSelectModal } from './components/FileSelectModal';
 
 type Phase = 'loading' | 'unauthenticated' | 'authenticated';
 type Theme = 'dark' | 'light';
 
 const THEME_KEY = 'drive-chat-theme';
+
+// Short label for the file-scope button: "All files" (default), "No files", or "N files".
+function scopeLabel(c: Conversation): string {
+  const sel = c.selectedFileIds;
+  if (sel === undefined) return 'All files';
+  if (sel.length === 0) return 'No files';
+  return `${sel.length} file${sel.length === 1 ? '' : 's'}`;
+}
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -26,6 +36,7 @@ export default function App() {
   const [reloading, setReloading] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [spend, setSpend] = useState<Spend>();
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem(THEME_KEY) as Theme | null;
@@ -196,9 +207,9 @@ export default function App() {
     }
   };
 
-  const handleSelectFiles = async (fileIds: string[]) => {
+  const handleSelectFiles = async (fileIds: string[] | null) => {
     if (!activeId) return;
-    patchConversation(activeId, (c) => ({ ...c, selectedFileIds: fileIds }));
+    patchConversation(activeId, (c) => ({ ...c, selectedFileIds: fileIds ?? undefined }));
     try {
       await api.selectFiles(fileIds);
     } catch (err) {
@@ -244,7 +255,7 @@ export default function App() {
       />
       <main className="layout">
         <header className="topbar">
-          <span className="brand">Drive Thru</span>
+          <Logo className="brand" />
           <span className="row">
             <button
               className="link-button icon-only"
@@ -295,22 +306,15 @@ export default function App() {
         ) : (
           active && (
             <>
-              <IngestSummary
-                conversation={active}
-                onReload={handleReload}
-                reloading={reloading}
-                onLoadFile={handleLoadFile}
-                loadingFiles={loadingFiles}
-                onLoadAll={handleLoadAll}
-                loadingAll={loadingAll}
-                onSelectFiles={handleSelectFiles}
-              />
+              <IngestSummary conversation={active} onReload={handleReload} reloading={reloading} />
               <ChatView
                 key={active.id}
                 messages={active.messages}
                 onAsk={handleAsk}
                 onRetry={handleRetry}
                 onExport={() => downloadMarkdown(active)}
+                onManageFiles={() => setPickerOpen(true)}
+                scopeLabel={scopeLabel(active)}
                 spend={spend}
                 busy={chatBusy}
               />
@@ -318,6 +322,17 @@ export default function App() {
           )
         )}
       </main>
+      {pickerOpen && active && (
+        <FileSelectModal
+          conversation={active}
+          onSelectFiles={handleSelectFiles}
+          onLoadFile={handleLoadFile}
+          loadingFiles={loadingFiles}
+          onLoadAll={handleLoadAll}
+          loadingAll={loadingAll}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }

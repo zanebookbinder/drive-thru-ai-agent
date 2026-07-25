@@ -8,8 +8,30 @@ interface Props {
   onAsk: (question: string) => void;
   onRetry: () => void;
   onExport: () => void;
+  onManageFiles: () => void;
+  scopeLabel: string;
   spend?: Spend;
   busy: boolean;
+}
+
+// A small stack-of-files glyph for the file-scope button.
+function FilesIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  );
 }
 
 const STARTERS = [
@@ -85,7 +107,16 @@ function AssistantMessage({ message, onRetry }: { message: StoredMessage; onRetr
   );
 }
 
-export function ChatView({ messages, onAsk, onRetry, onExport, spend, busy }: Props) {
+export function ChatView({
+  messages,
+  onAsk,
+  onRetry,
+  onExport,
+  onManageFiles,
+  scopeLabel,
+  spend,
+  busy,
+}: Props) {
   const [question, setQuestion] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>();
   const endRef = useRef<HTMLDivElement>(null);
@@ -182,9 +213,20 @@ export function ChatView({ messages, onAsk, onRetry, onExport, spend, busy }: Pr
           }}
           disabled={busy}
         />
-        <button className="button" type="submit" disabled={busy || question.trim().length === 0}>
-          Ask
-        </button>
+        <div className="composer-actions">
+          <button
+            type="button"
+            className="button ghost"
+            onClick={onManageFiles}
+            title="Choose which files Claude reads for this chat"
+          >
+            <FilesIcon />
+            {scopeLabel}
+          </button>
+          <button className="button" type="submit" disabled={busy || question.trim().length === 0}>
+            Ask
+          </button>
+        </div>
       </form>
     </div>
   );

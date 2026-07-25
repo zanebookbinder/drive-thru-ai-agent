@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FileTypeIcon } from './FileTypeIcon';
+import { Logo } from './Logo';
 
 function GoogleLogo() {
   return (
@@ -65,12 +66,12 @@ function Typewriter({ phrases }: { phrases: string[] }) {
   );
 }
 
-const TYPES = ['Google Doc', 'Google Sheet', 'PDF', 'Text', 'JSON'];
+const TYPES = ['Google Doc', 'Google Sheet', 'PDF'];
 
 export function LoginScreen() {
   return (
     <div className="hero">
-      <div className="hero-badge">Drive Thru</div>
+      <Logo className="hero-logo" />
       <h1 className="hero-title">Chat with your Google Drive.</h1>
       <p className="hero-example">
         <Typewriter phrases={EXAMPLES} />

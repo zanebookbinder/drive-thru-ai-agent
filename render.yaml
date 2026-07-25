@@ -1,0 +1,40 @@
+# One-click deploy config for Render (https://render.com).
+# In Render: New +  →  Blueprint  →  connect this repo. Render reads this file,
+# creates the service, and prompts for the secrets marked `sync: false` below.
+services:
+  - type: web
+    name: drive-thru
+    runtime: node
+    plan: free # $0; sleeps after ~15 min idle (cold start ~30s, sessions reset — by design)
+    buildCommand: npm ci && npm run build
+    startCommand: node server/dist/index.js
+    healthCheckPath: /healthz
+    autoDeploy: true # redeploy on every push to the default branch
+    envVars:
+      - key: NODE_ENV
+        value: production # REQUIRED — without it the server won't serve the client bundle
+      - key: NODE_VERSION
+        value: "20"
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5
+
+      # --- Secrets: set these in the Render dashboard (the Blueprint prompts you) ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Set AFTER the first deploy, once you know the URL:
+      #   https://<your-app>.onrender.com/auth/google/callback
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Set AFTER the first deploy:  https://<your-app>.onrender.com
+      - key: CLIENT_ORIGIN
+        sync: false
+      # Generate with:  openssl rand -hex 32
+      - key: SESSION_SECRET
+        sync: false
+      # Generate with:  openssl rand -hex 32   (must be 64 hex chars for AES-256)
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false

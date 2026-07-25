@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
 
 // Types recognizable enough to show as an icon alone; others keep their label.
-export const ICON_ONLY = new Set(['Google Doc', 'Google Sheet', 'Google Slides']);
+// PDF's glyph literally reads "PDF", so it needs no word beside it.
+export const ICON_ONLY = new Set(['Google Doc', 'Google Sheet', 'Google Slides', 'PDF']);
 
 function Doc({ color, corner, children }: { color: string; corner: string; children?: ReactNode }) {
   return (
@@ -36,6 +37,20 @@ const slide = (
   <rect x="5" y="7.4" width="6" height="4.4" rx="0.5" fill="none" stroke="#fff" strokeWidth="0.9" />
 );
 
+// Google Drive's PDF file glyph — a filled red tile with the letters knocked out.
+function PdfIcon() {
+  return (
+    <svg className="ftype-icon" width="19" height="19" viewBox="-2.5 -2.5 21 21" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M1.778 0h12.444C15.2 0 16 .8 16 1.778v12.444C16 15.2 15.2 16 14.222 16H1.778C.8 16 0 15.2 0 14.222V1.778C0 .8.8 0 1.778 0zm2.666 7.556h-.888v-.89h.888v.89zm1.334 0c0 .737-.596 1.333-1.334 1.333h-.888v1.778H2.222V5.333h2.222c.738 0 1.334.596 1.334 1.334v.889zm6.666-.89h2.223V5.334H11.11v5.334h1.333V8.889h1.334V7.556h-1.334v-.89zm-2.222 2.667c0 .738-.595 1.334-1.333 1.334H6.667V5.333h2.222c.738 0 1.333.596 1.333 1.334v2.666zm-1.333 0H8V6.667h.889v2.666z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 // Icon for a friendly file-type label. Google types get brand-ish colors; Text /
 // PDF / JSON / etc. get sensible made-up glyphs (paired with their word elsewhere).
 export function FileTypeIcon({ type }: { type: string }) {
@@ -47,7 +62,7 @@ export function FileTypeIcon({ type }: { type: string }) {
     case 'Google Slides':
       return <Doc color="#F4B400" corner="#FADE93">{slide}</Doc>;
     case 'PDF':
-      return <Doc color="#EA4335" corner="#F6A9A2">{lines}</Doc>;
+      return <PdfIcon />;
     case 'CSV':
       return <Doc color="#2E9E6B" corner="#A9DcC5">{grid}</Doc>;
     case 'JSON':

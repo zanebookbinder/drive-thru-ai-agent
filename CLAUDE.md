@@ -26,7 +26,7 @@ in-memory, with auth + conversation metadata mirrored to a JSON file on disk.
 ## Run it
 
 ```bash
-cp .env.example .env   # fill in the keys — see documentation/README.md
+cp .env.example .env   # fill in the keys — see README.md
 npm install
 npm run dev            # server :3000, client :5173 (proxied)
 ```
@@ -34,7 +34,7 @@ npm run dev            # server :3000, client :5173 (proxied)
 Open `http://localhost:5173`. Requires a Google Cloud OAuth client (Drive API +
 Sheets API enabled, redirect URI `http://localhost:3000/auth/google/callback`,
 your email added as a Test user) and an Anthropic API key. Full setup:
-[`documentation/README.md`](./documentation/README.md).
+[`README.md`](./README.md).
 
 `npm test` runs both suites (~54 tests). `npm run build` compiles client + server.
 

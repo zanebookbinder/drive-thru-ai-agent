@@ -70,7 +70,8 @@ export function pinConversation(id: string, pinned: boolean): Promise<{ conversa
   return request('/api/conversations/pin', 'POST', { id, pinned });
 }
 
-export function selectFiles(fileIds: string[]): Promise<{ conversation: Conversation }> {
+// null clears the scope back to "all loaded files"; [] means no files; [ids] scopes to those.
+export function selectFiles(fileIds: string[] | null): Promise<{ conversation: Conversation }> {
   return request('/api/conversations/select-files', 'POST', { fileIds });
 }
 

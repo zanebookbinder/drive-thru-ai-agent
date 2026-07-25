@@ -45,6 +45,41 @@ async function ensureCorpus(
   return corpus;
 }
 
+// When a chat is scoped to specific files, make sure each selected file is
+// actually loaded — otherwise scoping to a file that was gated out at ingest (or
+// dropped after a re-ingest) would silently send Claude no text for it. Loaded
+// files are remembered in manuallyLoaded so they survive a re-ingest.
+async function ensureSelectedLoaded(
+  config: Config,
+  store: SessionStore,
+  session: Session,
+  conv: StoredConversation,
+  corpus: Corpus,
+): Promise<void> {
+  const ids = conv.selectedFileIds;
+  if (!ids || ids.length === 0) return;
+
+  const loaded = new Set(corpus.documents.map((d) => d.fileId));
+  const missing = ids.filter((id) => !loaded.has(id));
+  if (missing.length === 0) return;
+
+  const client = new DriveClient(config, store, session);
+  conv.manuallyLoaded = conv.manuallyLoaded ?? [];
+  for (const id of missing) {
+    const meta = corpus.manifest.find((f) => f.id === id);
+    if (!meta || !isSupported(meta.mimeType)) continue;
+    try {
+      corpus.documents.push(await exportFile(client, meta));
+      corpus.unloaded = corpus.unloaded.filter((f) => f.id !== id);
+      if (!conv.manuallyLoaded.includes(id)) conv.manuallyLoaded.push(id);
+    } catch (err) {
+      log.warn('failed to load selected file for chat', { fileId: id });
+    }
+  }
+  conv.files = describeFiles(corpus);
+  store.flush();
+}
+
 export function createApiRouter(config: Config, store: SessionStore): Router {
   const router = Router();
   const cost = new CostTracker();
@@ -146,8 +181,10 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
     res.json({ conversation: conv });
   });
 
-  // Narrow chat to a subset of files (empty = all). Ids not currently loaded are
-  // simply ignored when the prompt is built.
+  // Set which files the chat is scoped to. Tri-state: an array of ids scopes to
+  // exactly those (an empty array means none); a null/absent fileIds clears the
+  // scope back to "all loaded files". Ids not currently loaded are ignored until
+  // they're loaded.
   router.post('/api/conversations/select-files', (req, res) => {
     const session = res.locals.session!;
     const conv = session.conversations.find((c) => c.id === session.activeConversationId);
@@ -155,8 +192,8 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
       res.status(400).json({ error: 'No active conversation.' });
       return;
     }
-    const ids = Array.isArray(req.body?.fileIds) ? req.body.fileIds.map(String) : [];
-    conv.selectedFileIds = ids;
+    const ids = req.body?.fileIds;
+    conv.selectedFileIds = Array.isArray(ids) ? ids.map(String) : undefined;
     store.flush();
     res.json({ conversation: conv });
   });
@@ -339,9 +376,11 @@ export function createApiRouter(config: Config, store: SessionStore): Router {
 
     try {
       const corpus = await ensureCorpus(config, store, session, conv);
+      await ensureSelectedLoaded(config, store, session, conv, corpus);
 
-      // Scope to the user's selection if any, else use the whole corpus.
-      const selected = conv.selectedFileIds?.length ? new Set(conv.selectedFileIds) : null;
+      // Scope to the user's selection when one is set (an empty selection means
+      // no files); an absent selection uses the whole loaded corpus.
+      const selected = conv.selectedFileIds ? new Set(conv.selectedFileIds) : null;
       const scopedDocs = selected
         ? corpus.documents.filter((d) => selected.has(d.fileId))
         : corpus.documents;

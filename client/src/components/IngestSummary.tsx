@@ -1,21 +1,13 @@
 import { useState } from 'react';
 import { Conversation, StoredFile } from '../types';
 import { formatBytes } from '../format';
-import { GATE_NOTE } from '../limits';
 import { FileTypeIcon, ICON_ONLY } from './FileTypeIcon';
 
 interface Props {
   conversation: Conversation;
   onReload: () => void;
   reloading: boolean;
-  onLoadFile: (fileId: string) => void;
-  loadingFiles: Set<string>;
-  onLoadAll: () => void;
-  loadingAll: boolean;
-  onSelectFiles: (fileIds: string[]) => void;
 }
-
-const PREVIEW_COUNT = 5;
 
 // Per-type tally rendered with icons, e.g. "176 [doc]  87 [pdf] PDF".
 function TypeTally({ files }: { files: StoredFile[] }) {
@@ -34,23 +26,16 @@ function TypeTally({ files }: { files: StoredFile[] }) {
   );
 }
 
-// A download-into-tray glyph making the "load this file" action obvious.
-function LoadIcon() {
+// The Google Drive triangle mark, shown next to the "Open" link.
+function DriveLogo() {
   return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3v12" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M5 21h14" />
+    <svg width="14" height="14" viewBox="0 0 87.3 78" aria-hidden="true">
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da" />
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47" />
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335" />
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d" />
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc" />
+      <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00" />
     </svg>
   );
 }
@@ -59,54 +44,20 @@ function sumBytes(files: StoredFile[]): number {
   return files.reduce((sum, f) => sum + (f.sizeBytes > 0 ? f.sizeBytes : 0), 0);
 }
 
-// Shows the folder — a loaded tally and an unloaded tally up top, then a per-file
-// list. Files loaded into the session show their size; unloaded files show a
-// "Load into session" button. Sizes (when Drive reports them) sit left of the type.
-export function IngestSummary({
-  conversation,
-  onReload,
-  reloading,
-  onLoadFile,
-  loadingFiles,
-  onLoadAll,
-  loadingAll,
-  onSelectFiles,
-}: Props) {
-  const [showAll, setShowAll] = useState(false);
-  const [copied, setCopied] = useState(false);
+// The folder overview: a loaded/unloaded tally up top, then a read-only per-file
+// list with sizes and types. Choosing which files the chat reads happens in the
+// "Select files to chat with" dialog, opened from the composer.
+export function IngestSummary({ conversation, onReload, reloading }: Props) {
   const [query, setQuery] = useState('');
   const { files, skipped } = conversation;
-
-  const selection = new Set(conversation.selectedFileIds ?? []);
-  const loadedCount = files.filter((f) => f.loaded).length;
-  const toggleFile = (fileId: string) => {
-    const next = new Set(selection);
-    if (next.has(fileId)) next.delete(fileId);
-    else next.add(fileId);
-    onSelectFiles([...next]);
-  };
 
   const q = query.trim().toLowerCase();
   const filtered = q
     ? files.filter((f) => `${f.path}/${f.name}`.toLowerCase().includes(q))
     : files;
-  const visible = showAll || q ? filtered : filtered.slice(0, PREVIEW_COUNT);
-  const hidden = filtered.length - PREVIEW_COUNT;
 
   const loaded = files.filter((f) => f.loaded);
-  const unloaded = files.filter((f) => !f.loaded);
   const loadedEstimated = loaded.some((f) => f.estimated);
-  const unloadedBytes = sumBytes(unloaded);
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(conversation.sourceUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard blocked (e.g. insecure context) — ignore.
-    }
-  };
 
   return (
     <div className="card">
@@ -115,12 +66,10 @@ export function IngestSummary({
           {conversation.title}
         </h2>
         <span className="row">
-          <a className="link-button" href={conversation.sourceUrl} target="_blank" rel="noreferrer">
-            Open in Drive
+          <a className="open-drive" href={conversation.sourceUrl} target="_blank" rel="noreferrer">
+            Open
+            <DriveLogo />
           </a>
-          <button className="link-button" onClick={copyLink}>
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
           <button className="link-button" onClick={onReload} disabled={reloading}>
             {reloading ? 'Reloading…' : 'Reload folder'}
           </button>
@@ -144,21 +93,6 @@ export function IngestSummary({
         )}
       </p>
 
-      {unloaded.length > 0 && (
-        <p className="muted tally-line">
-          {unloaded.length} not loaded
-          {unloadedBytes > 0 && ` · ${formatBytes(unloadedBytes)}`}
-          {' · '}
-          <TypeTally files={unloaded} />
-          {' · '}
-          <button className="link-button" onClick={onLoadAll} disabled={loadingAll}>
-            {loadingAll ? 'Loading all…' : 'Load all'}
-          </button>
-        </p>
-      )}
-
-      <p className="muted small gate-note">{GATE_NOTE}</p>
-
       {conversation.summary && (
         <div className="folder-summary">
           <span className="folder-summary-label muted small">Folder summary</span>
@@ -168,24 +102,6 @@ export function IngestSummary({
 
       {files.length > 0 && (
         <div className="file-section">
-          <div className="scope-line">
-            {selection.size > 0 ? (
-              <>
-                <span>
-                  Chatting with <strong>{selection.size}</strong> selected file
-                  {selection.size === 1 ? '' : 's'}
-                </span>
-                <button className="link-button small" onClick={() => onSelectFiles([])}>
-                  Use all files
-                </button>
-              </>
-            ) : (
-              <span className="muted small">
-                Chatting with all {loadedCount} loaded file{loadedCount === 1 ? '' : 's'} — check
-                files below to focus the chat on just those.
-              </span>
-            )}
-          </div>
           {files.length > 8 && (
             <input
               className="file-search"
@@ -196,24 +112,12 @@ export function IngestSummary({
             />
           )}
           {q && filtered.length === 0 && <p className="muted small">No files match “{query}”.</p>}
-          <ul className={`file-list${showAll || q ? ' scroll' : ''}`}>
-            {visible.map((file) => {
+          <ul className="file-list scroll">
+            {filtered.map((file) => {
               const folder = (file.path ?? '').replace(/^\//, '');
               const fullPath = folder ? `${folder}/${file.name}` : file.name;
-              const isLoading = loadingFiles.has(file.fileId);
               return (
                 <li key={file.fileId} className={file.loaded ? '' : 'unloaded'}>
-                  {file.loaded ? (
-                    <input
-                      type="checkbox"
-                      className="file-check"
-                      title="Include this file in the chat"
-                      checked={selection.has(file.fileId)}
-                      onChange={() => toggleFile(file.fileId)}
-                    />
-                  ) : (
-                    <span className="file-check-spacer" />
-                  )}
                   <span className="file-info">
                     {file.link ? (
                       <a
@@ -233,6 +137,7 @@ export function IngestSummary({
                     {folder && <span className="file-folder">{folder}</span>}
                   </span>
                   <span className="file-meta">
+                    {!file.loaded && <span className="not-loaded-tag">Not loaded</span>}
                     {file.sizeBytes > 0 && (
                       <span className="file-size">
                         {file.estimated ? '~' : ''}
@@ -243,27 +148,11 @@ export function IngestSummary({
                       <FileTypeIcon type={file.type} />
                       {!ICON_ONLY.has(file.type) && file.type}
                     </span>
-                    {!file.loaded && (
-                      <button
-                        className="load-btn"
-                        onClick={() => onLoadFile(file.fileId)}
-                        disabled={isLoading}
-                        title="Load into session"
-                      >
-                        <LoadIcon />
-                        {isLoading ? 'Loading…' : 'Load'}
-                      </button>
-                    )}
                   </span>
                 </li>
               );
             })}
           </ul>
-          {!q && hidden > 0 && (
-            <button className="link-button" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? 'Show fewer' : `Show all ${filtered.length}`}
-            </button>
-          )}
         </div>
       )}
 
