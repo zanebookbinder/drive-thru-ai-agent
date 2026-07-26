@@ -69,6 +69,13 @@ body {
   text-align: center;
 }
 
+/* Drawer affordances. Desktop keeps the sidebar docked, so both are inert here and
+   only become visible inside the narrow-screen block at the end of this file. */
+.nav-toggle,
+.nav-scrim {
+  display: none;
+}
+
 .conv-list {
   display: flex;
   flex-direction: column;
@@ -1139,4 +1146,278 @@ input[type='text'] {
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--accent);
+}
+
+/* ===========================================================================
+   Narrow screens. Everything below is inside a max-width query, so the desktop
+   rendering above is untouched. The shape of the change: the docked sidebar
+   becomes a slide-over drawer behind a hamburger, side-by-side rows are allowed
+   to stack, chrome tightens up, and touch targets grow.
+   =========================================================================== */
+@media (max-width: 768px) {
+  .nav-toggle {
+    display: inline-flex;
+    margin-left: -6px;
+    padding: 6px;
+  }
+
+  .nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .app.nav-open .nav-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Off-canvas until .nav-open. Fixed rather than sticky so it overlays the
+     content instead of stealing a third of the viewport width. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: auto;
+    width: 280px;
+    max-width: 84vw;
+    z-index: 45;
+    padding: 16px 14px;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+  }
+
+  .app.nav-open .sidebar {
+    transform: none;
+  }
+
+  /* No hover on touch, so the rename/pin/delete actions have to stay put. */
+  .conv-item .conv-actions {
+    display: flex;
+  }
+
+  .conv-item {
+    padding: 10px;
+  }
+
+  .layout {
+    padding: 14px 14px 32px;
+    gap: 12px;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .topbar {
+    gap: 8px;
+  }
+
+  /* The signed-in address is the first thing worth losing at this width. */
+  .topbar-email {
+    display: none;
+  }
+
+  .brand img {
+    height: 21px;
+  }
+
+  /* 16px keeps iOS Safari from zooming the viewport on focus. */
+  input[type='text'],
+  textarea,
+  .composer-input {
+    font-size: 16px;
+  }
+
+  input[type='text'] {
+    padding: 11px 12px;
+  }
+
+  .button {
+    padding: 11px 16px;
+  }
+
+  .icon-btn {
+    font-size: 15px;
+    padding: 6px 8px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  h2 {
+    font-size: 19px;
+  }
+
+  .summary-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px 12px;
+  }
+
+  .summary-head h2 {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+
+  /* Long names get the whole line and the size/type meta wraps beneath, rather
+     than the two squeezing each other into ellipses. */
+  .file-list li,
+  .modal-file {
+    flex-wrap: wrap;
+  }
+
+  .file-info {
+    min-width: 60%;
+  }
+
+  .file-meta {
+    gap: 8px;
+  }
+
+  .file-list.scroll {
+    max-height: 220px;
+  }
+
+  /* Overlay scrollbars are the platform norm here; the chunky desktop track
+     just eats horizontal room. */
+  .file-list.scroll,
+  .modal-file-list {
+    overflow-y: auto;
+    scrollbar-gutter: auto;
+  }
+
+  .file-list.scroll::-webkit-scrollbar,
+  .modal-file-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .file-list.scroll::-webkit-scrollbar-track,
+  .modal-file-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .file-list.scroll::-webkit-scrollbar-thumb,
+  .modal-file-list::-webkit-scrollbar-thumb {
+    border: none;
+  }
+
+  /* Absolute placement collides with the wrapped heading at this width. */
+  .paste-alert {
+    position: static;
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+
+  .messages {
+    max-height: 52vh;
+    max-height: 52dvh;
+  }
+
+  .turn {
+    max-width: 92%;
+    overflow-wrap: anywhere;
+  }
+
+  /* Textarea over a full-width button row: three controls will not fit on one
+     line once the scope label reads "12 files". */
+  .composer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .composer-actions {
+    align-items: stretch;
+  }
+
+  .composer-actions .button {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .composer-input {
+    min-height: 56px;
+  }
+
+  .starter-chip {
+    padding: 8px 14px;
+  }
+
+  /* Full-bleed dialog — a centred card with 20px of backdrop wastes the screen. */
+  .modal-backdrop {
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+  }
+
+  .modal-head,
+  .modal-note,
+  .modal-toolbar,
+  .modal-foot {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .modal-file {
+    padding: 12px 14px;
+  }
+
+  .modal-foot .button {
+    width: 100%;
+  }
+
+  .hero {
+    margin-top: 3vh;
+    padding: 0;
+    gap: 14px;
+  }
+
+  .hero-logo img {
+    height: 32px;
+  }
+
+  .hero-title {
+    font-size: 26px;
+  }
+
+  .hero-example {
+    font-size: 16px;
+  }
+
+  .hero-sub {
+    font-size: 15px;
+  }
+
+  .google-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 13px 20px;
+  }
+
+  .faq summary {
+    padding: 14px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-scrim {
+    transition: none;
+  }
 }

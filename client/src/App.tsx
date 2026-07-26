@@ -37,6 +37,7 @@ export default function App() {
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [spend, setSpend] = useState<Spend>();
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem(THEME_KEY) as Theme | null;
@@ -53,6 +54,19 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  // The sidebar is a slide-over drawer on narrow screens: lock the page behind it
+  // and let Escape dismiss it. On desktop it never opens, so this never runs.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [navOpen]);
 
   // Surface an aborted Google sign-in (the callback redirects here with ?auth=denied).
   useEffect(() => {
@@ -252,19 +266,48 @@ export default function App() {
   const showInput = composing || !active;
 
   return (
-    <div className="app">
+    <div className={`app${navOpen ? ' nav-open' : ''}`}>
       <Sidebar
         conversations={conversations}
         activeId={active && !composing ? activeId : undefined}
-        onSelect={handleSelect}
-        onNew={() => setComposing(true)}
+        onSelect={(id) => {
+          setNavOpen(false);
+          handleSelect(id);
+        }}
+        onNew={() => {
+          setNavOpen(false);
+          setComposing(true);
+        }}
         onRename={handleRename}
         onDelete={handleDelete}
         onPin={handlePin}
       />
+      {/* Dismisses the drawer on narrow screens; hidden entirely on desktop. */}
+      <div className="nav-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />
       <main className="layout">
         <header className="topbar">
-          <Logo className="brand" />
+          <span className="row topbar-left">
+            <button
+              className="link-button icon-only nav-toggle"
+              onClick={() => setNavOpen((o) => !o)}
+              aria-label={navOpen ? 'Close folder list' : 'Open folder list'}
+              aria-expanded={navOpen}
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+            <Logo className="brand" />
+          </span>
           <span className="row">
             <button
               className="link-button icon-only"
@@ -303,7 +346,7 @@ export default function App() {
                 </svg>
               )}
             </button>
-            <span className="muted">{email}</span>
+            <span className="muted topbar-email">{email}</span>
             <button className="link-button" onClick={handleLogout}>
               Sign out
             </button>
